@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/github-action.json
+name: 'Create pull request'
+description: 'Create a pull request, against the default branch, for the repo in its current state, ignoring untracked files.'
+inputs:
+  pull-request-body:
+    description: 'Markdown string to be used as the pull request description.'
+    required: false
+    default: 'Automated pull request.'
+  branch-prefix:
+    description: 'Prefix to be prepended to the branch name we create.'
+    required: false
+    default: 'auto_pr'
+  commit-message:
+    description: 'String to use as the commit message.'
+    required: false
+    default: 'Automated commit'
+  pr-title:
+    description: 'String to use as the title of the pull request.'
+    required: true
+  bearer-token:
+    description: "JWT to use when authenticating against the GitHub API. This must have perms as follows:\n * Actions: read/write;\n * Contents: read/write;\n * Pull requests: read/write."
+    required: true
+
+outputs:
+  pull-request-number:
+    description: "Integer ID of the pull request, if one was raised (so a PR visible at https://github.com/Org/Repo/pull/135 would have this value set to 135)."
+    value: ${{ steps.commit_action_create_pull_request.outputs.pull-request-number }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare environment
+      id: commit_action_prepare_env
+      shell: bash
+      run: 'venv_dir=$(mktemp) && rm "$venv_dir" && python -m venv "$venv_dir" && "$venv_dir/bin/python" -m pip install requests && echo "venv_dir=$venv_dir" >> "$GITHUB_OUTPUT"'
+
+    - name: Create pull request
+      shell: bash
+      id: commit_action_create_pull_request
+      env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BEARER_TOKEN: ${{ inputs.bearer-token }}
+          PR_TITLE: ${{ inputs.pr-title }}
+          venv_dir: ${{ steps.commit_action_prepare_env.outputs.venv_dir }}
+          PULL_REQUEST_BODY: ${{ inputs.pull-request-body }}
+          BRANCH_PREFIX: ${{ inputs.branch-prefix }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: '"$venv_dir/bin/python" "$GITHUB_ACTION_PATH/raise_pull_request.py"'
+
+    - name: Clean up
+      shell: bash
+      run: 'rm -r "$venv_dir"'
+      env:
+        venv_dir: ${{ steps.commit_action_prepare_env.outputs.venv_dir }}
+  

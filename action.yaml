@@ -23,7 +23,7 @@ inputs:
 
 outputs:
   pull-request-number:
-    description: "Integer ID of the pull request, if one was raised (so a PR visible at https://github.com/Org/Repo/pull/135 would have this value set to 135)."
+    description: "Integer ID of the pull request, if a new one was raised (so a PR visible at https://github.com/Org/Repo/pull/135 would have this value set to 135)."
     value: ${{ steps.commit_action_create_pull_request.outputs.pull-request-number }}
 
 runs:

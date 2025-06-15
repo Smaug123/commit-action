@@ -53,7 +53,7 @@ def get_git_diff():
     )
 
 
-def create_blob(content, encoding="utf-8"):
+def create_blob(content: str, encoding: str = "utf-8"):
     """Create a blob in the GitHub repository."""
     url = f"{GITHUB_API_URL}/repos/{REPO}/git/blobs"
     data = {"content": content, "encoding": encoding}
@@ -144,7 +144,7 @@ def main():
         return
 
     # Create blobs and prepare tree changes
-    tree_changes = []
+    tree_changes: list[TreeEntry] = []
     for file_path in changed_files:
         with open(file_path, "rb") as file:
             contents = base64.b64encode(file.read()).decode("ascii")

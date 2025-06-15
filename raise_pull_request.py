@@ -5,6 +5,7 @@ import requests
 import os
 import base64
 from typing import Literal, TypedDict
+from dataclasses import dataclass
 
 class TreeEntry(TypedDict):
     path: str
@@ -32,11 +33,18 @@ if not BRANCH_NAME:
     raise Exception("Set BRANCH_NAME; this will be used as a prefix for a new branch if we're in PR-creation mode, or verbatim if we're in push-to-existing-branch mode.")
 
 
-class NewPRInfo(TypedDict):
+@dataclass
+class NewPRInfo:
     pr_title: str
     pr_body: str
     base_branch: str
     source_branch: str
+
+
+@dataclass
+class ExistingPRInfo:
+    target_branch: str
+    target_repo: str
 
 
 def new_pr_info() -> NewPRInfo | str:
@@ -55,14 +63,12 @@ def new_pr_info() -> NewPRInfo | str:
     # BRANCH_NAME treated as a prefix in this mode
     branch_name = BRANCH_NAME + datetime.datetime.fromtimestamp(time.time()).strftime('%Y_%m_%d-%H_%M_%S_%f')
 
-    NEW_PR_INFO = NewPRInfo(pr_title=PR_TITLE, pr_body=PULL_REQUEST_BODY, base_branch=DEFAULT_BRANCH, source_branch=branch_name)
-
-    return NEW_PR_INFO
-
-
-class ExistingPRInfo(TypedDict):
-    target_branch: str
-    target_repo: str
+    return NewPRInfo(
+        pr_title=PR_TITLE,
+        pr_body=PULL_REQUEST_BODY,
+        base_branch=DEFAULT_BRANCH,
+        source_branch=branch_name
+    )
 
 
 def existing_pr_info() -> ExistingPRInfo | str:
@@ -73,9 +79,7 @@ def existing_pr_info() -> ExistingPRInfo | str:
     if not TARGET_REPO:
         return "Set TARGET_REPO env var, which is the repo where the TARGET_BRANCH is to be found"
 
-    result = ExistingPRInfo(target_branch=BRANCH_NAME, target_repo=TARGET_REPO)
-
-    return result
+    return ExistingPRInfo(target_branch=BRANCH_NAME, target_repo=TARGET_REPO)
 
 headers = {
     "Accept": "application/vnd.github+json",
@@ -83,11 +87,11 @@ headers = {
     "X-GitHub-Api-Version": "2022-11-28"
 }
 
-def get_git_diff():
+def get_git_diff() -> list[str]:
     """Get the files which have changed in the current repository."""
     return subprocess.check_output(["git", "diff", "--name-only"]).decode("utf-8").splitlines()
 
-def create_blob(content, encoding="utf-8"):
+def create_blob(content: str, encoding: str = "utf-8") -> str:
     """Create a blob in the GitHub repository."""
     url = f"{GITHUB_API_URL}/repos/{REPO}/git/blobs"
     data = {
@@ -113,7 +117,7 @@ def create_tree(base_tree: str, changes: list[TreeEntry], repo: str) -> str:
     print(f"Tree response: {response.text}")
     return response.json()["sha"]
 
-def create_commit(tree_sha: str, parent_sha: str, message: str, repo: str):
+def create_commit(tree_sha: str, parent_sha: str, message: str, repo: str) -> str:
     """Create a new commit."""
     url = f"{GITHUB_API_URL}/repos/{repo}/git/commits"
     data = {
@@ -130,7 +134,7 @@ def create_commit(tree_sha: str, parent_sha: str, message: str, repo: str):
     print(f"Commit: {json}")
     return json["sha"]
 
-def is_executable(filepath: str):
+def is_executable(filepath: str) -> bool:
     return os.path.isfile(filepath) and os.access(filepath, os.X_OK)
 
 def get_current_commit() -> str:
@@ -155,10 +159,10 @@ def create_pull_request(instructions: NewPRInfo) -> tuple[str, int]:
     """Returns the URL of the new PR."""
     url = f"{GITHUB_API_URL}/repos/{REPO}/pulls"
     data = {
-        "title": instructions["pr_title"],
-        "head": instructions["source_branch"],
-        "base": instructions["base_branch"],
-        "body": instructions["pr_body"],
+        "title": instructions.pr_title,
+        "head": instructions.source_branch,
+        "base": instructions.base_branch,
+        "body": instructions.pr_body,
         "maintainer_can_modify": True
     }
     print(f"PR creation request body: {data}")
@@ -185,7 +189,15 @@ def get_commit_info(commit_sha: str, repo: str = REPO) -> dict:
         raise Exception(f"Failed to get commit: {response.text}")
     return response.json()
 
-def main():
+def update_ref(branch_name: str, commit_sha: str, repo: str) -> None:
+    """Update a branch reference to point to a new commit."""
+    url = f"{GITHUB_API_URL}/repos/{repo}/git/refs/heads/{branch_name}"
+    data = {"sha": commit_sha}
+    response = requests.patch(url, headers=headers, json=data)
+    if not response.ok:
+        raise Exception(f"Failed to update branch: {response.text}")
+
+def main() -> None:
     new_info = new_pr_info()
     existing_info = existing_pr_info()
     what_to_do: NewPRInfo | ExistingPRInfo
@@ -205,7 +217,7 @@ def main():
         return
 
     # Create blobs and prepare tree changes
-    tree_changes = []
+    tree_changes: list[TreeEntry] = []
     for file_path in changed_files:
         with open(file_path, "rb") as file:
             contents = base64.b64encode(file.read()).decode('ascii')
@@ -232,8 +244,8 @@ def main():
     print(f"New commit created: {new_commit_sha}")
 
     if isinstance(what_to_do, NewPRInfo):
-        create_branch(what_to_do["source_branch"], new_commit_sha)
-        print(f"Branch created: {what_to_do['source_branch']}")
+        create_branch(what_to_do.source_branch, new_commit_sha)
+        print(f"Branch created: {what_to_do.source_branch}")
 
         url, pr_num = create_pull_request(what_to_do)
         print(f"See PR at: {url}")
@@ -242,17 +254,17 @@ def main():
             output_file.write(f"pull-request-number={pr_num}")
     else:
         # Get the current state of the target branch
-        parent_sha = get_ref_sha(what_to_do["target_branch"], REPO)
+        parent_sha = get_ref_sha(what_to_do.target_branch, REPO)
         parent_commit = get_commit_info(parent_sha, REPO)
         base_tree = parent_commit["tree"]["sha"]
 
         # Create new tree and commit
-        new_tree_sha = create_tree(base_tree, tree_changes, what_to_do["target_repo"])
-        new_commit_sha = create_commit(new_tree_sha, parent_sha, COMMIT_MESSAGE, what_to_do["target_repo"])
+        new_tree_sha = create_tree(base_tree, tree_changes, what_to_do.target_repo)
+        new_commit_sha = create_commit(new_tree_sha, parent_sha, COMMIT_MESSAGE, what_to_do.target_repo)
 
         # Update the branch
-        update_ref(what_to_do["target_branch"], new_commit_sha, what_to_do["target_repo"])
-        print(f"Pushed commit {new_commit_sha} to {what_to_do['target_repo']}/{what_to_do['target_branch']}")
+        update_ref(what_to_do.target_branch, new_commit_sha, what_to_do.target_repo)
+        print(f"Pushed commit {new_commit_sha} to {what_to_do.target_repo}/{what_to_do.target_branch}")
 
         with open(GITHUB_OUTPUT, "a") as output_file:
             output_file.write(f"commit-sha={new_commit_sha}\n")

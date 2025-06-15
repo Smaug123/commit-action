@@ -103,9 +103,9 @@ def get_git_diff() -> list[str]:
     )
 
 
-def create_blob(content: str, encoding: str = "utf-8") -> str:
+def create_blob(repo: str, content: str, encoding: str = "utf-8") -> str:
     """Create a blob in the GitHub repository."""
-    url = f"{GITHUB_API_URL}/repos/{REPO}/git/blobs"
+    url = f"{GITHUB_API_URL}/repos/{repo}/git/blobs"
     data = {"content": content, "encoding": encoding}
     response = requests.post(url, headers=headers, json=data)
     if not response.ok:
@@ -186,9 +186,11 @@ def create_pull_request(instructions: NewPRInfo) -> tuple[str, int]:
     return json["url"], json["number"]
 
 
-def get_ref_sha(ref: str, repo: str) -> str:
+def get_ref_sha(info: ExistingPRInfo) -> str:
     """Get the SHA of a reference on the remote."""
-    url = f"{GITHUB_API_URL}/repos/{repo}/git/ref/heads/{ref}"
+    url = (
+        f"{GITHUB_API_URL}/repos/{info.target_repo}/git/ref/heads/{info.target_branch}"
+    )
     response = requests.get(url, headers=headers)
     if not response.ok:
         raise Exception(f"bad response: {response.text}")
@@ -236,12 +238,18 @@ def main() -> None:
     if not changed_files:
         return
 
+    blob_target_repo: str
+    if isinstance(what_to_do, NewPRInfo):
+        blob_target_repo = REPO
+    else:
+        blob_target_repo = what_to_do.target_repo
+
     # Create blobs and prepare tree changes
     tree_changes: list[TreeEntry] = []
     for file_path in changed_files:
         with open(file_path, "rb") as file:
             contents = base64.b64encode(file.read()).decode("ascii")
-        blob_sha = create_blob(contents, encoding="base64")
+        blob_sha = create_blob(contents, blob_target_repo, encoding="base64")
         if is_executable(file_path):
             mode = "100755"
         else:
@@ -274,10 +282,10 @@ def main() -> None:
         print(f"See PR at: {url}")
 
         with open(GITHUB_OUTPUT, "a") as output_file:
-            output_file.write(f"pull-request-number={pr_num}")
+            output_file.write(f"pull-request-number={pr_num}\n")
     else:
         # Get the current state of the target branch
-        parent_sha = get_ref_sha(what_to_do.target_branch, REPO)
+        parent_sha = get_ref_sha(what_to_do)
         base_tree = get_commit_tree_sha(parent_sha, REPO)
 
         # Create new tree and commit

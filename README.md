@@ -51,7 +51,8 @@ When in raise-new-PR mode, you must supply the string title of any pull requests
 
 ## `branch-name`
 
-We raise pull requests using an auto-generated branch name with this prefix; or, in "push to an existing branch" mode, this is the name of the branch to push to.
+In raise-new-PR mode, we use this name as a prefix, appending an auto-generated branch name.
+In push-to-existing-branch mode, this is the name of the branch to push to.
 
 # Optional inputs
 

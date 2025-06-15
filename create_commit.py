@@ -76,13 +76,13 @@ def new_pr_info() -> NewPRInfo | str:
     )
 
 
-def existing_pr_info() -> ExistingPRInfo | str:
+def existing_pr_info() -> ExistingPRInfo | None:
     """
     On failure, returns a human-readable description of why we couldn't construct an ExistingPRInfo.
     """
-    TARGET_REPO = os.environ.get("TARGET_REPO") or REPO
+    TARGET_REPO = os.environ.get("TARGET_REPO")
     if not TARGET_REPO:
-        return "Set TARGET_REPO env var, which is the repo where the TARGET_BRANCH is to be found"
+        return None
 
     return ExistingPRInfo(target_branch=BRANCH_NAME, target_repo=TARGET_REPO)
 
@@ -220,19 +220,17 @@ def main() -> None:
     existing_info = existing_pr_info()
     what_to_do: NewPRInfo | ExistingPRInfo
     if isinstance(new_info, str):
-        if isinstance(existing_info, str):
+        if existing_info is None:
             raise Exception(
-                f"Failed to parse arguments. For creating a new PR, errors as follows:\n{new_info}\n\nFor pushing to an existing branch, errors as follows:\n{existing_info}"
+                f"Failed to parse arguments. For creating a new PR, errors as follows:\n{new_info}\n\nTo guarantee args parse through the push-to-existing-args flow, set TARGET_REPO."
             )
         else:
             what_to_do = existing_info
     else:
-        if isinstance(existing_info, str):
-            what_to_do = new_info
+        if existing_info is not None:
+            what_to_do = existing_info
         else:
-            raise Exception(
-                "Ambiguous arguments: parsed as both creating a new PR and pushing to an existing one."
-            )
+            what_to_do = new_info
 
     changed_files = get_git_diff()
     if not changed_files:

@@ -1,12 +1,13 @@
 # `commit-action`
 
 Action which performs a Git commit.
+The action allows either pushing to an existing branch, or creating a new branch and raising a PR for that new branch.
 Importantly, this uses the GitHub API, and so is signed wherever possible.
 
 # Behaviour
 
 We expect you to have applied some diff, unstaged, to the repository, before you invoke this action.
-Then we'll essentially perform `git diff` and create a commit with that diff applied against the currently-checked-out commit, and (if the diff was nonempty) we raise a pull request against the repository's default branch.
+Then we'll essentially perform `git diff` and create a commit with that diff applied against the currently-checked-out commit, and (if the diff was nonempty) we either push the new commit to an existing branch, or we raise a pull request against the repository's default branch.
 
 As of this writing, *we ignore untracked files*.
 You should explicitly `git add --intent-to-add` any untracked files you want to push, before invoking this action.
@@ -48,24 +49,30 @@ Their contents are an [app ID](https://docs.github.com/en/apps/creating-github-a
 
 You must supply the string title of any pull requests to be raised.
 
+## `branch-name`
+
+We raise pull requests using an auto-generated branch name with this prefix; or, in "push to an existing branch" mode, this is the name of the branch to push to.
+
 # Optional inputs
-
-## `branch-prefix`
-
-We raise pull requests using an auto-generated branch name.
-You can customise the prefix of this branch.
 
 ## `pull-request-body`
 
-We raise pull requests using an auto-generated description.
+We raise new pull requests using an auto-generated description.
 You can customise this description by setting this to some Markdown.
+(Don't set this if you're in push-to-existing-branch mode.)
 
 ## `commit-message`
 
-We raise pull requests from a branch created at a new commit.
-You can customise the commit message of this commit by setting this.
+You can customise the commit message of the new commit we make by setting this.
+
+## `target-repo`
+
+In push-to-existing-branch mode only, set this to override the repo on which the `branch-name` is to be found.
+(By default, we use the base repo into which the PR is being made.)
 
 # Outputs
+
+## In create-new-PR mode
 
 We set `pull-request-number` on success, to the integer ID of the pull request (so a PR visible at `https://github.com/Org/Repo/pull/135` would have this value set to `135`).
 You can therefore check whether the PR was raised:
@@ -87,3 +94,7 @@ You can therefore check whether the PR was raised:
     # Use the pull request number, e.g. 135
     that-step-wants-input: ${{ steps.cpr.outputs.pull-request-number }}
 ```
+
+## In push-to-existing-PR mode
+
+We set `commit-sha` on success, to the SHA we pushed.

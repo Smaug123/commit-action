@@ -252,19 +252,21 @@ def main() -> None:
             )
         )
 
-    base_tree = get_current_tree()
-
-    # Create a new tree
-    new_tree_sha = create_tree(base_tree, tree_changes, REPO)
-    print(f"Tree: {new_tree_sha}")
-
-    # Create a new commit
-    new_commit_sha = create_commit(
-        new_tree_sha, get_current_commit(), COMMIT_MESSAGE, REPO
-    )
-    print(f"New commit created: {new_commit_sha}")
-
     if isinstance(what_to_do, NewPRInfo):
+        base_tree = get_current_tree()
+
+        # Create a new tree
+        new_tree_sha = create_tree(base_tree, tree_changes, REPO)
+        print(f"Tree: {new_tree_sha}")
+
+        # Create a new commit
+        new_commit_sha = create_commit(
+            new_tree_sha, get_current_commit(), COMMIT_MESSAGE, REPO
+        )
+        print(f"New commit created: {new_commit_sha}")
+        with open(GITHUB_OUTPUT, "a") as output_file:
+            output_file.write(f"commit-sha={new_commit_sha}\n")
+
         create_branch(what_to_do.source_branch, new_commit_sha)
         print(f"Branch created: {what_to_do.source_branch}")
 

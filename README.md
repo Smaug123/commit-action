@@ -47,7 +47,7 @@ Their contents are an [app ID](https://docs.github.com/en/apps/creating-github-a
 
 ## `pr-title`
 
-You must supply the string title of any pull requests to be raised.
+When in raise-new-PR mode, you must supply the string title of any pull requests to be raised.
 
 ## `branch-name`
 

@@ -25,10 +25,10 @@ inputs:
 outputs:
   pull-request-number:
     description: "Integer ID of the pull request, if a new one was raised (so a PR visible at https://github.com/Org/Repo/pull/135 would have this value set to 135)."
-    value: ${{ steps.commit_action_create_pull_request.outputs.pull-request-number }}
+    value: ${{ steps.commit_action_create_commit.outputs.pull-request-number }}
   commit-sha:
     description: "SHA of the commit we created."
-    value: ${{ steps.commit_action_create_pull_request.outputs.commit-sha }}
+    value: ${{ steps.commit_action_create_commit.outputs.commit-sha }}
 
 runs:
   using: "composite"

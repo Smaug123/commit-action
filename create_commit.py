@@ -249,7 +249,7 @@ def main() -> None:
     for file_path in changed_files:
         with open(file_path, "rb") as file:
             contents = base64.b64encode(file.read()).decode("ascii")
-        blob_sha = create_blob(contents, blob_target_repo, encoding="base64")
+        blob_sha = create_blob(blob_target_repo, contents, encoding="base64")
         if is_executable(file_path):
             mode = "100755"
         else:
@@ -286,7 +286,7 @@ def main() -> None:
     else:
         # Get the current state of the target branch
         parent_sha = get_ref_sha(what_to_do)
-        base_tree = get_commit_tree_sha(parent_sha, REPO)
+        base_tree = get_commit_tree_sha(parent_sha, blob_target_repo)
 
         # Create new tree and commit
         new_tree_sha = create_tree(base_tree, tree_changes, what_to_do.target_repo)
